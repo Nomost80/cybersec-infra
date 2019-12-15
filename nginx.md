@@ -40,15 +40,8 @@ chown -R www:www /etc/nginx /var/log/nginx
 mv /etc/nginx/nginx.conf /etc/nginx/nginx.conf.default
 ```
 
-2. After one of the following roles
-```bash
-firewall-cmd add-service={http,https} --permanent
-firewall-cmd --reload
-systemctl enable --now nginx
-```
-
-## Load Balancer and Reverse Proxy
-
+2. Setup Nginx
+   
 ```bash
 export DOMAIN=alphapar.fr
 
@@ -57,12 +50,11 @@ user   www www;  ## Default: nobody
 worker_processes   5;  ## Default: 1
 
 error_log   /var/log/nginx/error.log warn;
-pid         /var/log/nginx/nginx.pid;
 
 worker_rlimit_nofile   8192;
 
 events {
-    worker_connections   4096;  ## Default: 1024
+  worker_connections   4096;  ## Default: 1024
 }
 
 http {
@@ -79,18 +71,17 @@ http {
 
   keepalive_timeout   65;
 
-  ssl                         on;
   ssl_prefer_server_ciphers   on;
-  ssl_protocols               [TLSv1.3];
+  ssl_protocols               TLSv1.2 TLSv1.3;
   ssl_session_cache           shared:SSL:10m;
   ssl_session_timeout         10m;
 
-  ssl_certificate           /etc/nginx/ssl/${DOMAIN}/chain.crt;
-  ssl_certificate_key       /etc/nginx/ssl/${DOMAIN}/server.key;
+  ssl_certificate           /etc/nginx/certs/chain.crt;
+  ssl_certificate_key       /etc/nginx/certs/server.key;
 
   upstream applications {
-    server 10.0.50.3;
-    server 10.0.50.4;
+    server web1.alphapar.fr;
+    server web2.alphapar.fr;
   }
 
   server {
@@ -101,79 +92,28 @@ http {
 
   server {
     listen        443 ssl http2;
-    server_name   ${IP} www.${IP}; 
+    server_name   ${DOMAIN} www.${DOMAIN}; 
 
     access_log   /var/log/nginx/access.log main;
 
     location / {
       proxy_pass   https://applications;
-      health_check;
     }
   }
 }
 EOF
 ```
 
-## Web Server
-
+3. Open ports with firewalld
 ```bash
-export IP=xx.xx.xx.xx
+firewall-cmd --add-service=http --permanent
+firewall-cmd --add-service=https --permanent
+firewall-cmd --reload
+```
 
-cat <<EOF | tee /etc/nginx.conf
-user   www www;  ## Default: nobody
-worker_processes   5;  ## Default: 1
-
-error_log   /var/log/nginx/error.log warn;
-pid         /var/log/nginx/nginx.pid;
-
-worker_rlimit_nofile   8192;
-
-events {
-    worker_connections   4096;  ## Default: 1024
-}
-
-http {
-  include   /etc/nginx/mime.types;
-  include   /etc/nginx/confd/*conf;   
-
-  default_type   application/json;
-
-  log_format   main  '$remote_addr - $remote_user [$time_local] "$request" '
-                   '$status $body_bytes_sent "$http_referer" '
-                   '"$http_user_agent" "$http_x_forwarded_for"';
-
-  access_log   /var/log/nginx/access.log  main;
-
-  keepalive_timeout   65;
-
-  ssl                         on;
-  ssl_prefer_server_ciphers   on;
-  ssl_protocols               [TLSv1.3];
-  ssl_session_cache           shared:SSL:10m;
-  ssl_session_timeout         10m;
-
-  ssl_certificate           /etc/nginx/ssl/chain.crt;
-  ssl_certificate_key       /etc/nginx/ssl/server.key;
-
-  server {
-    listen        80;  
-    server_name   ${IP} www.${IP};
-    return        301 https://$server_name$request_uri; #Redirection; 
-  }
-
-  server {
-    listen        443 ssl http2;
-    server_name   ${IP} www.${IP}; 
-
-    access_log   /var/log/nginx/access.log main;
-
-    location / {
-      proxy_pass   http://localhost;
-      health_check;
-    }
-  }
-}
-EOF
+4. Enable and start nginx
+```bash
+systemctl enable --now nginx
 ```
 
 # ToDo

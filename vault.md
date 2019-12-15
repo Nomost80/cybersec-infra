@@ -83,7 +83,7 @@ EOF
 ```bash
 cat <<EOF | tee /etc/vault/config.hcl
 ui                      = true
-api_addr                = "http://0.0.0.0:8200"
+api_addr                = "http://127.0.0.1:8200"
 max_lease_ttl           = "10h"
 default_lease_ttl       = "10h"
 cluster_name            = "vault"
@@ -91,7 +91,7 @@ disable_sealwrap        = true
 disable_printable_check = true
 
 listener "tcp" {
-   address            = "0.0.0.0:8200"
+   address            = "127.0.0.1:8200"
    tls_disable        = true
 }
 
@@ -139,7 +139,7 @@ gpg --export uid | base64 > /etc/vault/pgp/xxxx.asc
 3. Init Vault
 ```bash
 # By default Vault try to use the https endpoint even if TLS is disabled
-export VAULT_ADDR=http://0.0.0.0:8200
+export VAULT_ADDR=http://127.0.0.1:8200
 export VKP=/etc/vault/pgp/xxxx.asc
 
 vault operator init \
@@ -207,8 +207,8 @@ vault write -field=certificate pki/root/generate/internal \
 4. Configure the CA and CRL URLs
 ```bash
 vault write pki/config/urls \
-  issuing_certificates="http://${HOST_FQDN}:8200/v1/pki/ca" \
-  crl_distribution_points="http://${HOST_FQDN}:8200/v1/pki/crl"
+  issuing_certificates="https://${HOST_FQDN}:8200/v1/pki/ca" \
+  crl_distribution_points="https://${HOST_FQDN}:8200/v1/pki/crl"
 ```
 
 5. Enable the pki secrets engine at the pki_int path
@@ -264,10 +264,10 @@ vault write pki_int/issue/alphapar-dot-fr common_name=$HOST_FQDN ttl="1440h"
     
 14.  In `/etc/vault/config.hcl` remove `tls_disable = true` and add/edit the following lines:
 ```bash
-api_addr = "http://${HOST_FQDN}:8200"
+api_addr = "https://${HOST_FQDN}:8200"
 
 listener "tcp" {
-  address       = "${HOST_FQDN}:8200"
+  address       = "${IP}:8200"
   tls_cert_file = "/etc/vault/certs/vault.crt"
   tls_key_file  = "/etc/vault/certs/vault.key" 
 }
@@ -275,8 +275,6 @@ listener "tcp" {
 
 15.  Edit Vault environment variables and reload the shell
 ```bash
-# Use the https endpoint again
-unset VAULT_ADDR
 # If Vault is still listening in 127.0.0.1:8200
 echo "export VAULT_ADDR=https://${HOST_FQDN}:8200" >> ~/.bashrc
 # The tls_cert_file param is not working well
@@ -368,10 +366,11 @@ The GUI is available at https://vault.corp.alphapar.fr:8200
 
 Request a certificate
 ```bash
-vault write pki_int/issue/example-dot-com common_name="xxxx.${DOMAIN}" ttl="1440h"
+vault write pki_int/issue/alphapar-dot-fr common_name="xxxx.${DOMAIN}" ttl="1440h"
 ```
 
 Then we juste have to indicate the server certificate, the server private key and the chain certificates (if the root certificate is located in the trusted zones only the intermediate is needed).
+The private key is not saved by Vault therefore we need to save it.
 
 Remove expired certificates and clean CRL
 ```bash
