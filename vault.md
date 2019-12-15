@@ -273,7 +273,7 @@ listener "tcp" {
 }
 ```
 
-1.  Edit Vault environment variables and reload the shell
+15.  Edit Vault environment variables and reload the shell
 ```bash
 # Use the https endpoint again
 unset VAULT_ADDR
