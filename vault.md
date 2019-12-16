@@ -9,7 +9,7 @@ export VAULT_VERSION=1.3.0
 
 2. Download the binary release
 ```bash   
-curl -sO https://releases.hashicorp.com/vault/${VAULT_VERSION}/vault_${VAULT_VERSION}_linux_amd64.zip
+curl -O https://releases.hashicorp.com/vault/${VAULT_VERSION}/vault_${VAULT_VERSION}_linux_amd64.zip
 ```
 
 3. Extract the binary
@@ -17,9 +17,9 @@ curl -sO https://releases.hashicorp.com/vault/${VAULT_VERSION}/vault_${VAULT_VER
 unzip vault_${VAULT_VERSION}_linux_amd64.zip
 ```
 
-1. Make Vault globally available
+4. Make Vault globally available
 ```bash   
-mv vault /usr/local/bin/
+sudo mv vault /usr/local/bin/
 ```
 
 5. Enable command autocompletion
@@ -29,24 +29,24 @@ vault -autocomplete-install
 
 6. Create Vault folders
 ```bash
-mkdir /etc/vault
-mkdir -p /var/lib/vault/data
-mkdir /var/log/vault
+sudo mkdir /etc/vault
+sudo mkdir -p /var/lib/vault/data
+sudo mkdir /var/log/vault
 ```
 
 7. Create Vault user
 ```bash
-useradd --system --home /etc/vault --shell /bin/false vault
+sudo useradd --system --home /etc/vault --shell /bin/false vault
 ```
 
 8. Set Vault folders owner
 ```bash   
-chown -R vault:vault /etc/vault /var/lib/vault/ /var/log/vault
+sudo chown -R vault:vault /etc/vault /var/lib/vault/ /var/log/vault
 ```
 
 9. Add systemd unit
 ```bash   
-cat <<EOF | tee /etc/systemd/system/vault.service
+cat <<EOF | sudo tee /etc/systemd/system/vault.service
 [Unit]
 Description="HashiCorp Vault - A tool for managing secrets"
 Documentation=https://www.vaultproject.io/docs/
@@ -81,7 +81,7 @@ EOF
 
 10. Create Vault config file
 ```bash
-cat <<EOF | tee /etc/vault/config.hcl
+cat <<EOF | sudo tee /etc/vault/config.hcl
 ui                      = true
 api_addr                = "http://127.0.0.1:8200"
 max_lease_ttl           = "10h"
@@ -89,6 +89,7 @@ default_lease_ttl       = "10h"
 cluster_name            = "vault"
 disable_sealwrap        = true
 disable_printable_check = true
+log_level               = "trace"   
 
 listener "tcp" {
    address            = "127.0.0.1:8200"
@@ -104,18 +105,18 @@ Note: For the moment Vault is only available in localhost.
 
 11. Reload systemd daemon
 ```bash
-systemctl daemon-reload
+sudo systemctl daemon-reload
 ```
 
 12. Open Firewall port
 ```bash
-firewall-cmd --add-port=8200/tcp --permanent
-firewall-cmd --reload
+sudo firewall-cmd --add-port=8200/tcp --permanent
+sudo firewall-cmd --reload
 ``` 
 
 13. Enable and start Vault
 ```bash
-systemctl enable --now vault
+sudo systemctl enable --now vault
 ```
 
 # Setup
@@ -242,9 +243,13 @@ vault write pki_int/intermediate/set-signed certificate=@intermediate.crt
 
 10. (Optional) Add the root certificate to the trusted zone. It allows to only pass the intermediate certificate instead of the full chain to the service.
 ```bash
-yum install -y ca-certificates
-cp root.crt /etc/pki/ca-trust/source/anchors/
-update-ca-trust
+# On Centos7
+sudo cp root.crt /etc/pki/ca-trust/source/anchors/
+sudo update-ca-trust
+
+# On Debian
+cp root.crt /usr/local/share/ca-certificates
+sudo update-ca-certificates
 ```
 
 11. Create a role for the domain
@@ -294,7 +299,7 @@ systemctl restart vault
 ```bash
 export DOMAIN_NAME=corp.alphapar
 export DOMAIN_EXT=fr
-export DOMAIN="${DOMAINE_NAME}.${DOMAIN_EXT}"
+export DOMAIN="${DOMAIN_NAME}.${DOMAIN_EXT}"
 ```
 
 2. Enable LDAP authentication
@@ -305,7 +310,7 @@ vault auth enable ldap
 3. Setup LDAP link
 ```bash
 vault write auth/ldap/config \
-  url="ldap://ldap.example.com" \
+  url="ldap://${DOMAIN}" \
   userdn="ou=Users,dc=${DOMAIN_NAME},dc=${DOMAIN_EXT}" \
   groupdn="ou=Groups,dc=${DOMAIN_NAME},dc=${DOMAIN_EXT}" \
   groupfilter="(&(objectClass=group)(member:1.2.840.113556.1.4.1941:={{.UserDN}}))" \
@@ -341,18 +346,18 @@ vault secrets enable database
 
 2. Setup database link
 ```bash
-vault write database/config/my-mysql-database \
+vault write database/config/eshop \
   plugin_name=mysql-database-plugin \
-  connection_url="{{username}}:{{password}}@tcp(127.0.0.1:3306)/" \
+  connection_url="{{username}}:{{password}}@tcp(db.alphapar.fr:3306)/" \
   allowed_roles="mysql-credentials" \
-  username="root" \
-  password="mysql"
+  username="vault" \
+  password="xxxxxxxxx"
 ```
 
 3. Create the Vault role which creates crendentials
 ```bash
 vault write database/roles/mysql-credentials \
-  db_name=my-mysql-database \
+  db_name=eshop \
   creation_statements="CREATE USER '{{name}}'@'%' IDENTIFIED BY '{{password}}';GRANT SELECT ON *.* TO '{{name}}'@'%';" \
   default_ttl="1h" \
   max_ttl="24h"
@@ -391,3 +396,13 @@ lease_renewable    true
 password           8cab931c-d62e-a73d-60d3-5ee85139cd66
 username           v-root-e2978cd0-
 ```
+
+# Note
+
+Use `| tee` instand of `>`.
+
+The bindpass param for the ldap auth is never taken into consideration even in the UI when there are special chars. Therefore the authenticated searching is not working...
+
+# TMP
+
+vault write auth/ldap/config  url="ldap://dc.corp.alphapar.fr" binddn="cn=vault,ou=Logins,ou=alphapar,dc=corp,dc=alphapar,dc=fr" bindpass="V4uLt1024" userdn="ou=alphapar,dc=corp,dc=alphapar,dc=fr" userattr="sAMAccountName" upndomain="corp.alphapar.fr"

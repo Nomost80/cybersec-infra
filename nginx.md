@@ -4,10 +4,10 @@ The goal is to have a reverse proxy that serve the e-commerce website on the int
 
 1. Add repo
 ```bash
-cat <<EOF | tee /etc/yum.repos.d/nginx.repo
+cat <<EOF | sudo tee /etc/yum.repos.d/nginx.repo
 [nginx]
 name=nginx repo
-baseurl=https://nginx.org/packages/mainline/centos/7/$basearch/
+baseurl=https://nginx.org/packages/mainline/centos/7/x86_64/
 gpgcheck=0
 enabled=1
 EOF
@@ -15,29 +15,29 @@ EOF
 
 2. Update the system
 ```bash
-yum update
+sudo yum update
 ```
 
 3. Install the package
 ```bash
-yum install nginx
+sudo yum install -y nginx
 ```
 
 4. Create a www user
 ```bash
-useradd --system --home /etc/nginx --shell /bin/false www
+sudo useradd --system --home /etc/nginx --shell /bin/false www
 ```
 
 5. Set Nginx folders owner
 ```bash
-chown -R www:www /etc/nginx /var/log/nginx
+sudo chown -R www:www /etc/nginx /var/log/nginx
 ``` 
 
 # Setup
 
 1. Move default config
 ```bash
-mv /etc/nginx/nginx.conf /etc/nginx/nginx.conf.default
+sudo mv /etc/nginx/nginx.conf /etc/nginx/nginx.conf.default
 ```
 
 2. Setup Nginx
@@ -45,7 +45,7 @@ mv /etc/nginx/nginx.conf /etc/nginx/nginx.conf.default
 ```bash
 export DOMAIN=alphapar.fr
 
-cat <<EOF | tee /etc/nginx.conf
+cat <<EOF | sudo tee /etc/nginx/nginx.conf
 user   www www;  ## Default: nobody
 worker_processes   5;  ## Default: 1
 
@@ -106,14 +106,14 @@ EOF
 
 3. Open ports with firewalld
 ```bash
-firewall-cmd --add-service=http --permanent
-firewall-cmd --add-service=https --permanent
-firewall-cmd --reload
+sudo firewall-cmd --add-service=http --permanent
+sudo firewall-cmd --add-service=https --permanent
+sudo firewall-cmd --reload
 ```
 
 4. Enable and start nginx
 ```bash
-systemctl enable --now nginx
+sudo systemctl enable --now nginx
 ```
 
 # ToDo
