@@ -363,6 +363,35 @@ vault write database/roles/mysql-credentials \
   max_ttl="24h"
 ```
 
+## App Role
+
+The goal is to allow apps to authenticate with Vault defined roles.
+
+1. Enable app role auth method
+```bash
+vault auth enable approle
+```
+
+2. Create a policy
+```bash
+cat <<EOF | vault policy write mysql -
+path "database/creds/mysql-credentials" {
+  capabilities = ["read"]
+}
+EOF
+```
+
+3. Create a named role linked to the above policy
+```bash
+vault write auth/approle/role/mysql-consumer \
+  secret_id_ttl=10m \
+  token_num_uses=10 \
+  token_ttl=20m \
+  token_max_ttl=30m \
+  secret_id_num_uses=40 \
+  token_policies="mysql"
+```
+
 # Usage
 
 The GUI is available at https://vault.corp.alphapar.fr:8200
@@ -397,12 +426,56 @@ password           8cab931c-d62e-a73d-60d3-5ee85139cd66
 username           v-root-e2978cd0-
 ```
 
+
+Full example workflow:
+
+1. Get role id
+```bash
+vault read auth/approle/role/mysql-consumer/role-id
+
+role_id     db02de05-fa39-4855-059b-67221c5c2f63
+```
+
+2. Get secret id
+```bash
+vault write -f auth/approle/role/my-role/secret-id
+
+secret_id               6a174c20-f6de-a53c-74d2-6018fcceff64
+secret_id_accessor      c454f7e5-996e-7230-6074-6ef26b7bcf86
+```
+
+3. Get mysql credentials
+```js
+import axios from 'axios';
+
+const vaultWS = axios.create({
+  baseURL: 'https://vault.corp.alphapar.fr:8200/v1',
+  responseType: 'json'
+});
+
+vaultWS.interceptors.response.use(response => response.data);
+
+// Ideally these credentiaks should come from process.env that would have been setted by a CI/CD system because these values have a short lifetime for security concerns.
+const body = {
+  role_id: 'db02de05-fa39-4855-059b-67221c5c2f63',
+  secret_id: '6a174c20-f6de-a53c-74d2-6018fcceff64'
+};
+
+// get token that allows to fetch mysql credentials
+const { auth } = vaultWS.post('/auth/approle/login', body);
+
+const headers = {
+  'X-Vault-Token': auth.client_token
+};
+
+// get mysql dynamic credentials
+const { username, password } = axios.get('/database/creds/mysql-credentials', { headers });
+```
+
 # Note
 
 Use `| tee` instand of `>`.
 
 The bindpass param for the ldap auth is never taken into consideration even in the UI when there are special chars. Therefore the authenticated searching is not working...
 
-# TMP
-
-vault write auth/ldap/config  url="ldap://dc.corp.alphapar.fr" binddn="cn=vault,ou=Logins,ou=alphapar,dc=corp,dc=alphapar,dc=fr" bindpass="V4uLt1024" userdn="ou=alphapar,dc=corp,dc=alphapar,dc=fr" userattr="sAMAccountName" upndomain="corp.alphapar.fr"
+https://www.hashicorp.com/blog/authenticating-applications-with-vault-approle/
