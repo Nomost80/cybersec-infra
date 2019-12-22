@@ -257,12 +257,15 @@ sudo update-ca-certificates
 vault write pki_int/roles/alphapar-dot-fr \
   allowed_domains=$DOMAIN \
   allow_subdomains=true \
+  allow_bare_domains=true \
   max_ttl="1440h"
 ```
+For additionnal parameters look here https://www.vaultproject.io/api/secret/pki/index.html#create-update-role
 
 12. Request a certificate for Vault
 ```bash
-vault write pki_int/issue/alphapar-dot-fr common_name=$HOST_FQDN ttl="1440h"
+vault write pki_int/issue/alphapar-dot-fr \ 
+  common_name=$HOST_FQDN ip_sans=$IP ttl="1440h"
 ```
 
 13. Copy the private key in `/etc/vault/certs/vault.key` and concatenate in this order : the certificate - intermediate ca certificate in `/etc/vault/certs/vault.crt`
@@ -400,11 +403,17 @@ The GUI is available at https://vault.corp.alphapar.fr:8200
 
 Request a certificate
 ```bash
-vault write pki_int/issue/alphapar-dot-fr common_name="xxxx.${DOMAIN}" ttl="1440h"
+vault write pki_int/issue/alphapar-dot-fr \ 
+  common_name="xxxx.${DOMAIN}" ip_sans=$IP ttl="1440h"
 ```
 
 Then we juste have to indicate the server certificate, the server private key and the chain certificates (if the root certificate is located in the trusted zones only the intermediate is needed).
 The private key is not saved by Vault therefore we need to save it.
+
+Revoke a certificate
+```bash
+vault write /pki_int/revoke serial_number=xxxxxx
+```
 
 Remove expired certificates and clean CRL
 ```bash

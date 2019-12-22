@@ -61,8 +61,6 @@ http {
   include   /etc/nginx/mime.types;
   include   /etc/nginx/confd/*conf;   
 
-  default_type   application/json;
-
   log_format   main  '$remote_addr - $remote_user [$time_local] "$request" '
                    '$status $body_bytes_sent "$http_referer" '
                    '"$http_user_agent" "$http_x_forwarded_for"';
@@ -80,8 +78,8 @@ http {
   ssl_certificate_key       /etc/nginx/certs/server.key;
 
   upstream applications {
-    server web1.alphapar.fr;
-    server web2.alphapar.fr;
+    server web1.alphapar.fr:8080;
+    server web2.alphapar.fr:8080;
   }
 
   server {
@@ -96,8 +94,14 @@ http {
 
     access_log   /var/log/nginx/access.log main;
 
+    add_header   'Access-Control-Allow-Origin' 'https://www.alphapar.fr';
+    add_header   'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
+
     location / {
-      proxy_pass   https://applications;
+      proxy_set_header host $host;
+      proxy_set_header X-real-ip $remote_addr;
+      proxy_set_header X-forward-for $proxy_add_x_forwarded_for;
+      proxy_pass   http://applications;
     }
   }
 }
@@ -111,11 +115,22 @@ sudo firewall-cmd --add-service=https --permanent
 sudo firewall-cmd --reload
 ```
 
-4. Enable and start nginx
+4. Add nginx to permissive domain
+```bash
+sudo yum install -y policycoreutils-python
+sudo semanage permissive -a httpd_t
+```
+
+5. Enable and start nginx
 ```bash
 sudo systemctl enable --now nginx
 ```
 
+# Note
+
+https://www.nginx.com/blog/using-nginx-plus-with-selinux/
+
 # ToDo
 
+[ ] Instead of setting nginx permissive, just allow the restricted operations
 [ ] Enable caching
